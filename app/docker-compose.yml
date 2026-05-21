@@ -1,0 +1,22 @@
+version: '3'
+
+services:
+
+  nginx:
+    image: nginx:latest
+    ports:
+      - "80:80"
+
+  mongo:
+    image: mongo
+    ports:
+      - "27017:27017"
+
+  nodeapp:
+    image: node:18
+    working_dir: /app
+    command: bash -c "npm install && npm start"
+    volumes:
+      - ./backend:/app
+    ports:
+      - "3000:3000"

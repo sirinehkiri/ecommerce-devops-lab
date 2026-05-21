@@ -1,0 +1,43 @@
+---
+- hosts: web
+  become: yes
+  tasks:
+
+    - name: Installer Docker
+      yum:
+        name: docker
+        state: present
+
+    - name: Démarrer et activer Docker
+      service:
+        name: docker
+        state: started
+        enabled: yes
+
+    - name: Ajouter ec2-user au groupe docker
+      user:
+        name: ec2-user
+        groups: docker
+        append: yes
+
+    - name: Installer Docker Compose
+      get_url:
+        url: https://github.com/docker/compose/releases/latest/download/docker-compose-linux-x86_64
+        dest: /usr/local/bin/docker-compose
+        mode: '0755'
+
+    - name: Créer le dossier app
+      file:
+        path: /home/ec2-user/app
+        state: directory
+        owner: ec2-user
+
+    - name: Copier docker-compose.yml
+      copy:
+        src: docker-compose.yml
+        dest: /home/ec2-user/app/docker-compose.yml
+
+    - name: Lancer les conteneurs
+      shell: /usr/local/bin/docker-compose up -d
+      args:
+        chdir: /home/ec2-user/app
