@@ -32,10 +32,43 @@
         state: directory
         owner: ec2-user
 
+    - name: Créer le dossier nginx
+      file:
+        path: /home/ec2-user/app/nginx
+        state: directory
+        owner: ec2-user
+
+    - name: Créer le dossier backend
+      file:
+        path: /home/ec2-user/app/backend
+        state: directory
+        owner: ec2-user
+
     - name: Copier docker-compose.yml
       copy:
-        src: docker-compose.yml
+        src: ../app/docker-compose.yml
         dest: /home/ec2-user/app/docker-compose.yml
+
+    - name: Copier nginx config
+      copy:
+        src: ../app/nginx/default.conf
+        dest: /home/ec2-user/app/nginx/default.conf
+
+    - name: Copier package.json
+      copy:
+        src: ../app/backend/package.json
+        dest: /home/ec2-user/app/backend/package.json
+
+    - name: Copier index.js
+      copy:
+        src: ../app/backend/index.js
+        dest: /home/ec2-user/app/backend/index.js
+
+    - name: Arrêter les conteneurs
+      shell: /usr/local/bin/docker-compose down
+      args:
+        chdir: /home/ec2-user/app
+      ignore_errors: yes
 
     - name: Lancer les conteneurs
       shell: /usr/local/bin/docker-compose up -d
