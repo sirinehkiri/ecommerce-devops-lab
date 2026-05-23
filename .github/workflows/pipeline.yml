@@ -46,13 +46,19 @@ jobs:
           IPS=$(terraform output -raw instance_public_ip)
           echo "instance_ips=$IPS" >> $GITHUB_OUTPUT
 
-  deploy:
-    name: Deploy Application
+  ansible:
+    name: Configure Servers
     runs-on: ubuntu-latest
     needs: terraform
     steps:
       - name: Checkout
         uses: actions/checkout@v3
+
+      - name: Install Ansible version compatible
+        run: |
+          sudo apt update
+          sudo apt install -y python3-pip
+          pip3 install ansible==6.7.0
 
       - name: Setup SSH Key
         run: |
@@ -62,47 +68,15 @@ jobs:
       - name: Attendre que l'instance soit prête
         run: sleep 60
 
-      - name: Deploy via SSH
+      - name: Generate Inventory automatiquement
         run: |
           IP="${{ needs.terraform.outputs.instance_ips }}"
+          echo "[web]" > inventory.ini
+          echo "$IP ansible_user=ec2-user ansible_ssh_private_key_file=key.pem" >> inventory.ini
+          echo "Inventory créé avec IP : $IP"
+          cat inventory.ini
 
-          # Copier les fichiers sur le serveur
-          scp -i key.pem -o StrictHostKeyChecking=no \
-            app/docker-compose.yml ec2-user@$IP:~/docker-compose.yml
-
-          scp -i key.pem -o StrictHostKeyChecking=no \
-            app/backend/index.js ec2-user@$IP:~/index.js
-
-          scp -i key.pem -o StrictHostKeyChecking=no \
-            app/backend/package.json ec2-user@$IP:~/package.json
-
-          scp -i key.pem -o StrictHostKeyChecking=no \
-            app/nginx/default.conf ec2-user@$IP:~/default.conf
-
-          # Installer Docker et lancer les conteneurs
-          ssh -i key.pem -o StrictHostKeyChecking=no ec2-user@$IP << 'ENDSSH'
-            # Installer Docker
-            sudo yum install -y docker
-            sudo systemctl start docker
-            sudo systemctl enable docker
-            sudo usermod -aG docker ec2-user
-
-            # Installer Docker Compose
-            sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-linux-x86_64" \
-              -o /usr/local/bin/docker-compose
-            sudo chmod +x /usr/local/bin/docker-compose
-
-            # Préparer les dossiers
-            mkdir -p ~/app/nginx ~/app/backend
-
-            # Copier les fichiers
-            mv ~/docker-compose.yml ~/app/
-            mv ~/index.js ~/app/backend/
-            mv ~/package.json ~/app/backend/
-            mv ~/default.conf ~/app/nginx/
-
-            # Lancer les conteneurs
-            cd ~/app
-            sudo /usr/local/bin/docker-compose down || true
-            sudo /usr/local/bin/docker-compose up -d
-          ENDSSH
+      - name: Run Ansible Deployment
+        run: ansible-playbook -i inventory.ini ansible/deploy.yml
+        env:
+          ANSIBLE_HOST_KEY_CHECKING: "False"
