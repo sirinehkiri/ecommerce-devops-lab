@@ -24,6 +24,7 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
           aws-region: ${{ secrets.AWS_REGION }}
+
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
 
@@ -42,7 +43,7 @@ jobs:
       - name: Export Instance IPs
         id: export
         run: |
-          IPS=$(terraform output -json instance_public_ips | jq -r '.[]' | tr '\n' ',')
+          IPS=$(terraform output -raw instance_public_ip)
           echo "instance_ips=$IPS" >> $GITHUB_OUTPUT
 
   ansible:
@@ -63,12 +64,16 @@ jobs:
           echo "${{ secrets.EC2_KEY }}" > key.pem
           chmod 600 key.pem
 
-      - name: Generate Inventory
+      - name: Generate Inventory automatiquement
         run: |
+          IP="${{ needs.terraform.outputs.instance_ips }}"
           echo "[web]" > inventory.ini
-          for ip in $(echo "${{ needs.terraform.outputs.instance_ips }}" | tr ',' ' '); do
-            echo "$ip ansible_user=ec2-user ansible_ssh_private_key_file=key.pem" >> inventory.ini
-          done
+          echo "$IP ansible_user=ec2-user ansible_ssh_private_key_file=key.pem" >> inventory.ini
+          echo "Inventory créé avec IP : $IP"
+          cat inventory.ini
+
+      - name: Attendre que l'instance soit prête
+        run: sleep 30
 
       - name: Run Ansible Deployment
         run: ansible-playbook -i inventory.ini ansible/deploy.yml
